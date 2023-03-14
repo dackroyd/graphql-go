@@ -63,7 +63,7 @@ func (f *SchemaField) Resolve(ctx context.Context, resolver reflect.Value) (outp
 		args = f.PackedArgs.Interface()
 	}
 
-	return f.Field.Resolve(ctx, resolver, args)
+	return f.Field.Resolve(ctx, resolver, f.Args, args)
 }
 
 type TypeAssertion struct {

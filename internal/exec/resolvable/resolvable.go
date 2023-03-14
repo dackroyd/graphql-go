@@ -55,19 +55,22 @@ type Field struct {
 }
 
 type FieldVisitors struct {
-	ArgValidators map[string][]directives.InputValidator
-	Interceptors  []directives.ResolverInterceptor
-	Validators    []directives.Validator
+	ArgInterceptors map[string][]directives.InputInterceptor
+	ArgValidators   map[string][]directives.InputValidator
+	Interceptors    []directives.ResolverInterceptor
+	Validators      []directives.Validator
 }
 
 func (f *Field) UseMethodResolver() bool {
 	return f.MethodIndex != -1 || f.IsFieldFunc
 }
 
-func (f *Field) Resolve(ctx context.Context, resolver reflect.Value, args interface{}) (output interface{}, err error) {
+func (f *Field) Resolve(ctx context.Context, resolver reflect.Value, rawArgs map[string]interface{}, args interface{}) (output interface{}, err error) {
+	fieldInt := f.Visitors.Interceptors
+	argInt := f.Visitors.ArgInterceptors
+
 	// Short circuit case to avoid wrapping functions
-	v := f.Visitors.Interceptors
-	if len(v) == 0 {
+	if len(fieldInt) == 0 && len(argInt) == 0 {
 		return f.resolve(ctx, resolver, args)
 	}
 
@@ -75,13 +78,55 @@ func (f *Field) Resolve(ctx context.Context, resolver reflect.Value, args interf
 		return f.resolve(ctx, resolver, args)
 	}
 
-	for _, d := range v {
+	for _, d := range fieldInt {
 		d := d // Needed to avoid passing only the last directive, since we're closing over this loop var pointer
 		innerResolver := wrapResolver
 
 		wrapResolver = func(ctx context.Context, args interface{}) (output interface{}, err error) {
 			return d.Resolve(ctx, args, resolverFunc(innerResolver))
 		}
+	}
+
+	innerResolver := wrapResolver
+
+	wrapResolver = func(ctx context.Context, args interface{}) (output interface{}, err error) {
+		modifiedArgs := make(map[string]interface{}, len(rawArgs))
+
+		for _, def := range f.FieldDefinition.Arguments {
+			name := def.Name.Name
+			arg := rawArgs[name]
+
+			interceptors, ok := argInt[name]
+			if !ok {
+				modifiedArgs[name] = arg
+				continue
+			}
+
+			for _, d := range interceptors {
+				// TODO: should these chain like resolvers?
+				arg, err = d.InterceptArg(ctx, arg)
+				if err != nil {
+					// FIXME: 'output' will break when the caller tries to do something with it?
+					return output, err
+				}
+			}
+
+			modifiedArgs[name] = arg
+		}
+
+		// If any of the directives modified the incoming arguments, we have to re-pack them
+		// TODO: what impact does this have on validation? It's already been done at this stage, but changing arg values may invalidate that...
+		if len(rawArgs) > 0 && !reflect.DeepEqual(rawArgs, modifiedArgs) {
+			packed, err := f.ArgsPacker.Pack(modifiedArgs)
+			if err != nil {
+				// FIXME: 'output' will break when the caller tries to do something with it?
+				return output, err
+			}
+
+			args = packed.Interface()
+		}
+
+		return innerResolver(ctx, args)
 	}
 
 	return wrapResolver(ctx, args)
@@ -285,8 +330,9 @@ func buildDirectivePackers(s *ast.Schema, visitors map[string]directives.Directi
 			continue
 		}
 
+		// TODO: use v.AllowLocation(loc) to determine this / 'is schema directive' (vs executable directive)
 		switch v.(type) {
-		case directives.ResolverInterceptor, directives.Validator, directives.InputValidator:
+		case directives.ResolverInterceptor, directives.InputInterceptor, directives.Validator, directives.InputValidator:
 			// Accepted directive type
 		default:
 			// Directive doesn't apply at field resolution time, skip it
@@ -322,7 +368,7 @@ func applyDirectives(s *ast.Schema, visitors []directives.Directive) (map[string
 
 		// At least 1 of the optional directive functions must be defined for each directive.
 		switch v.(type) {
-		case directives.ResolverInterceptor, directives.Validator, directives.InputValidator:
+		case directives.ResolverInterceptor, directives.InputInterceptor, directives.Validator, directives.InputValidator:
 			byName[name] = v
 		default:
 			return nil, fmt.Errorf("directive %q (implemented by %T) does not implement a valid directive visitor function", name, v)
@@ -651,6 +697,7 @@ func (b *execBuilder) makeFieldExec(typeName string, f *ast.FieldDefinition, m r
 func packDirectives(f *ast.FieldDefinition, packers map[string]*packer.StructPacker) (*FieldVisitors, error) {
 	var resolvers []directives.ResolverInterceptor
 	var validators []directives.Validator
+	argInterceptors := map[string][]directives.InputInterceptor{}
 	argValidators := map[string][]directives.InputValidator{}
 
 	for _, d := range f.Directives {
@@ -686,18 +733,30 @@ func packDirectives(f *ast.FieldDefinition, packers map[string]*packer.StructPac
 				return nil, err
 			}
 
+			// Visitors can implement any of these types optionally, and may implement multiple
+			if v, ok := v.(directives.InputInterceptor); ok {
+				argInterceptors[a.Name.Name] = append(argInterceptors[a.Name.Name], v)
+			}
+
 			if v, ok := v.(directives.InputValidator); ok {
 				argValidators[a.Name.Name] = append(argValidators[a.Name.Name], v)
 			}
 		}
 	}
 
-	return &FieldVisitors{ArgValidators: argValidators, Interceptors: resolvers, Validators: validators}, nil
+	return &FieldVisitors{ArgInterceptors: argInterceptors, ArgValidators: argValidators, Interceptors: resolvers, Validators: validators}, nil
 }
 
 func packDirective(d *ast.Directive, dp *packer.StructPacker) (interface{}, error) {
 	args := make(map[string]interface{})
 	for _, arg := range d.Arguments {
+		// FIXME: directives with non-mandatory args come through as nil here instead of ast.NullValue?
+		if arg.Value == nil {
+			continue
+		}
+
+		// FIXME: also "could not unmarshal 3 (int32) into int: incompatible type: int32" - type coersion to be done?
+
 		args[arg.Name.Name] = arg.Value.Deserialize(nil)
 	}
 

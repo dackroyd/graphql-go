@@ -18,6 +18,12 @@ type Resolver interface {
 	Resolve(ctx context.Context, args interface{}) (output interface{}, err error)
 }
 
+// InputInterceptor for a field resolver function, applying the directive logic.
+// This is an *optional* directive function (at least 1 optional function must be declared for each directive).
+type InputInterceptor interface {
+	InterceptArg(ctx context.Context, value interface{}) (newValue interface{}, err error)
+}
+
 // ResolverInterceptor for a field resolver function, applying the directive logic.
 // This is an *optional* directive function (at least 1 optional function must be declared for each directive).
 type ResolverInterceptor interface {
