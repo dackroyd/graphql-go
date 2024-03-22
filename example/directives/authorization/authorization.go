@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/graph-gophers/graphql-go/ast"
 	"github.com/graph-gophers/graphql-go/example/directives/authorization/user"
 )
 
@@ -31,8 +32,8 @@ type HasRoleDirective struct {
 	Role string
 }
 
-func (h *HasRoleDirective) AllowLocation(l string) bool {
-	return l == "FIELD_DEFINITION"
+func (h *HasRoleDirective) AllowLocation(l ast.DirectiveLocation) bool {
+	return l == ast.DirectiveLocationFieldDefinition
 }
 
 func (h *HasRoleDirective) ImplementsDirective() string {

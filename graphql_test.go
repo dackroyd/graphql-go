@@ -62,8 +62,8 @@ type customInvalidDirective struct {
 	CustomAttribute *string
 }
 
-func (c customInvalidDirective) AllowLocation(l string) bool {
-	return l == "FIELD_DEFINITION"
+func (c customInvalidDirective) AllowLocation(l ast.DirectiveLocation) bool {
+	return l == ast.DirectiveLocationFieldDefinition
 }
 
 func (c customInvalidDirective) ImplementsDirective() string {
@@ -74,8 +74,8 @@ type customDirectiveVisitor struct {
 	CustomAttribute *string
 }
 
-func (v *customDirectiveVisitor) AllowLocation(l string) bool {
-	return l == "FIELD_DEFINITION"
+func (v *customDirectiveVisitor) AllowLocation(l ast.DirectiveLocation) bool {
+	return l == ast.DirectiveLocationFieldDefinition
 }
 
 func (v *customDirectiveVisitor) ImplementsDirective() string {
@@ -98,8 +98,8 @@ type customArgDirectiveVisitor struct {
 	CustomAttribute *string
 }
 
-func (v *customArgDirectiveVisitor) AllowLocation(l string) bool {
-	return l == "ARGUMENT_DEFINITION"
+func (v *customArgDirectiveVisitor) AllowLocation(l ast.DirectiveLocation) bool {
+	return l == ast.DirectiveLocationArgumentDefinition
 }
 
 func (v *customArgDirectiveVisitor) ImplementsDirective() string {
@@ -122,8 +122,8 @@ type cachedDirectiveVisitor struct {
 	Key string
 }
 
-func (v *cachedDirectiveVisitor) AllowLocation(l string) bool {
-	return l == "FIELD_DEFINITION"
+func (v *cachedDirectiveVisitor) AllowLocation(l ast.DirectiveLocation) bool {
+	return l == ast.DirectiveLocationFieldDefinition
 }
 
 func (v *cachedDirectiveVisitor) ImplementsDirective() string {
@@ -338,8 +338,8 @@ type wrapDirective struct {
 	Suffix string
 }
 
-func (w *wrapDirective) AllowLocation(l string) bool {
-	return l == "FIELD_DEFINITION"
+func (w *wrapDirective) AllowLocation(l ast.DirectiveLocation) bool {
+	return l == ast.DirectiveLocationFieldDefinition
 }
 
 func (w *wrapDirective) ImplementsDirective() string {
@@ -735,8 +735,8 @@ func TestCustomValidatingDirective(t *testing.T) {
 
 type restrictImperialUnitsDirective struct{}
 
-func (d *restrictImperialUnitsDirective) AllowLocation(l string) bool {
-	return l == "ARGUMENT_DEFINITION"
+func (d *restrictImperialUnitsDirective) AllowLocation(l ast.DirectiveLocation) bool {
+	return l == ast.DirectiveLocationArgumentDefinition
 }
 
 func (d *restrictImperialUnitsDirective) ImplementsDirective() string {
@@ -761,8 +761,8 @@ type lengthDirective struct {
 	Min *int32
 }
 
-func (d *lengthDirective) AllowLocation(l string) bool {
-	return l == "ARGUMENT_DEFINITION"
+func (d *lengthDirective) AllowLocation(l ast.DirectiveLocation) bool {
+	return l == ast.DirectiveLocationArgumentDefinition
 }
 
 func (d *lengthDirective) ImplementsDirective() string {

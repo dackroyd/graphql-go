@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	"github.com/graph-gophers/graphql-go"
+	"github.com/graph-gophers/graphql-go/ast"
 	"github.com/graph-gophers/graphql-go/directives"
 )
 
@@ -19,8 +20,8 @@ type HasRoleDirective struct {
 	Role string
 }
 
-func (h *HasRoleDirective) AllowLocation(l string) bool {
-	return l == "FIELD_DEFINITION"
+func (h *HasRoleDirective) AllowLocation(l ast.DirectiveLocation) bool {
+	return l == ast.DirectiveLocationFieldDefinition
 }
 
 func (h *HasRoleDirective) ImplementsDirective() string {
@@ -39,8 +40,8 @@ type WithNullableArgumentDirective struct {
 	ANullableArgument *string
 }
 
-func (_ *WithNullableArgumentDirective) AllowLocation(l string) bool {
-	return l == "FIELD_DEFINITION"
+func (_ *WithNullableArgumentDirective) AllowLocation(l ast.DirectiveLocation) bool {
+	return l == ast.DirectiveLocationFieldDefinition
 }
 
 func (_ *WithNullableArgumentDirective) Validate(_ context.Context, _, _ interface{}) error {
@@ -53,8 +54,8 @@ func (_ *WithNullableArgumentDirective) ImplementsDirective() string {
 
 type UpperDirective struct{}
 
-func (d *UpperDirective) AllowLocation(l string) bool {
-	return l == "FIELD_DEFINITION"
+func (d *UpperDirective) AllowLocation(l ast.DirectiveLocation) bool {
+	return l == ast.DirectiveLocationFieldDefinition
 }
 
 func (d *UpperDirective) ImplementsDirective() string {

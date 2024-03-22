@@ -682,7 +682,7 @@ func packDirectives(f *ast.FieldDefinition, packers map[string]*packer.StructPac
 			return nil, err
 		}
 
-		if !v.AllowLocation("FIELD_DEFINITION") {
+		if !v.AllowLocation(ast.DirectiveLocationFieldDefinition) {
 			return nil, fmt.Errorf("directive %q declared on field definition, but implementation %T doesn't allow this location", d.Name.Name, v)
 		}
 
@@ -708,7 +708,7 @@ func packDirectives(f *ast.FieldDefinition, packers map[string]*packer.StructPac
 				return nil, err
 			}
 
-			if !v.AllowLocation("ARGUMENT_DEFINITION") {
+			if !v.AllowLocation(ast.DirectiveLocationArgumentDefinition) {
 				return nil, fmt.Errorf("directive %q declared on argument definition %q, but implementation %T doesn't allow this location", d.Name.Name, a.Name.Name, v)
 			}
 

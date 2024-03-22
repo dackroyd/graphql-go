@@ -2,6 +2,8 @@ package directives
 
 import (
 	"context"
+
+	"github.com/graph-gophers/graphql-go/ast"
 )
 
 // Directive defines the interface that clients should use to implement a custom Directive.
@@ -10,7 +12,7 @@ import (
 //
 // See the graphql.Directives() Schema Option.
 type Directive interface {
-	AllowLocation(l string) bool
+	AllowLocation(l ast.DirectiveLocation) bool
 	ImplementsDirective() string
 }
 
