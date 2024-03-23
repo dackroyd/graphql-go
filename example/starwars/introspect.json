@@ -1334,6 +1334,22 @@
                 }
               }
             }
+          },
+          {
+            "args": [],
+            "deprecationReason": null,
+            "description": null,
+            "isDeprecated": false,
+            "name": "isRepeatable",
+            "type": {
+              "kind": "NON_NULL",
+              "name": null,
+              "ofType": {
+                "kind": "SCALAR",
+                "name": "Boolean",
+                "ofType": null
+              }
+            }
           }
         ],
         "inputFields": null,
@@ -1386,6 +1402,12 @@
             "description": "Location adjacent to an inline fragment.",
             "isDeprecated": false,
             "name": "INLINE_FRAGMENT"
+          },
+          {
+            "deprecationReason": null,
+            "description": "Location adjacent to a variable definition.",
+            "isDeprecated": false,
+            "name": "VARIABLE_DEFINITION"
           },
           {
             "deprecationReason": null,

@@ -75,6 +75,7 @@ var metaSrc = `
 		description: String
 		locations: [__DirectiveLocation!]!
 		args: [__InputValue!]!
+		isRepeatable: Boolean!
 	}
 
 	# A Directive can be adjacent to many parts of the GraphQL language, a
@@ -94,6 +95,8 @@ var metaSrc = `
 		FRAGMENT_SPREAD
 		# Location adjacent to an inline fragment.
 		INLINE_FRAGMENT
+		# Location adjacent to a variable definition.
+		VARIABLE_DEFINITION
 		# Location adjacent to a schema definition.
 		SCHEMA
 		# Location adjacent to a scalar definition.

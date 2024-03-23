@@ -337,3 +337,7 @@ func (r *Directive) Args() []*InputValue {
 	}
 	return l
 }
+
+func (r *Directive) IsRepeatable() bool {
+	return r.directive.Repeatable
+}

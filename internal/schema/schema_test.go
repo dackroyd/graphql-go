@@ -814,6 +814,7 @@ Second line of the description.
 				| ENUM_VALUE
 				| INPUT_OBJECT
 				| INPUT_FIELD_DEFINITION
+				| VARIABLE_DEFINITION
 			directive @repeatabledirective repeatable on SCALAR
 
 			interface NamedEntity @directive { name: String }
