@@ -562,3 +562,84 @@ func Example_multipleExecutableSchemas() {
 	//   ]
 	// }
 }
+
+func Example_preparedQuery() {
+	schema := graphql.MustParseSchema(starwars.Schema, &starwars.Resolver{})
+
+	query := `
+	  query HeroAndFriends($episode: Episode!) {
+	    hero(episode: $episode) {
+	      name
+	      friends {
+	        name
+	      }
+	    }
+	  }`
+
+	prepared, err := schema.PrepareQuery(context.Background(), query)
+	if err != nil {
+		panic(err)
+	}
+
+	vars1 := map[string]interface{}{
+		"episode": "JEDI",
+	}
+	res1 := prepared.Exec(context.Background(), "", vars1)
+
+	vars2 := map[string]interface{}{
+		"episode": "EMPIRE",
+	}
+	res2 := prepared.Exec(context.Background(), "", vars2)
+
+	enc := json.NewEncoder(os.Stdout)
+	enc.SetIndent("", "  ")
+
+	if err := enc.Encode(res1); err != nil {
+		panic(err)
+	}
+
+	if err := enc.Encode(res2); err != nil {
+		panic(err)
+	}
+
+	// output:
+	// {
+	//   "data": {
+	//     "hero": {
+	//       "name": "R2-D2",
+	//       "friends": [
+	//         {
+	//           "name": "Luke Skywalker"
+	//         },
+	//         {
+	//           "name": "Han Solo"
+	//         },
+	//         {
+	//           "name": "Leia Organa"
+	//         }
+	//       ]
+	//     }
+	//   }
+	// }
+	// {
+	//   "data": {
+	//     "hero": {
+	//       "name": "Luke Skywalker",
+	//       "friends": [
+	//         {
+	//           "name": "Han Solo"
+	//         },
+	//         {
+	//           "name": "Leia Organa"
+	//         },
+	//         {
+	//           "name": "C-3PO"
+	//         },
+	//         {
+	//           "name": "R2-D2"
+	//         }
+	//       ]
+	//     }
+	//   }
+	// }
+}

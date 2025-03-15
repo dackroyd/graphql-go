@@ -69,7 +69,20 @@ func newContext(s *ast.Schema, doc *ast.ExecutableDefinition, maxDepth int, over
 	}
 }
 
-func Validate(s *ast.Schema, doc *ast.ExecutableDefinition, variables map[string]interface{}, maxDepth int, overlapPairLimit int) []*errors.QueryError {
+func Validate(s *ast.Schema, doc *ast.ExecutableDefinition, variables map[string]interface{}, maxDepth, overlapPairLimit int) []*errors.QueryError {
+	if errs := ValidateQuery(s, doc, maxDepth, overlapPairLimit); len(errs) > 0 {
+		return errs
+	}
+
+	if errs := ValidateQueryVariables(s, doc, variables, maxDepth, overlapPairLimit); len(errs) > 0 {
+		return errs
+	}
+
+	return nil
+}
+
+// ValidateQuery after parsing into an executable definition.
+func ValidateQuery(s *ast.Schema, doc *ast.ExecutableDefinition, maxDepth, overlapPairLimit int) []*errors.QueryError {
 	c := newContext(s, doc, maxDepth, overlapPairLimit)
 
 	opNames := make(nameSet, len(doc.Operations))
@@ -102,7 +115,6 @@ func Validate(s *ast.Schema, doc *ast.ExecutableDefinition, variables map[string
 			if !canBeInput(t) {
 				c.addErr(v.TypeLoc, "VariablesAreInputTypesRule", "Variable %q cannot be non-input type %q.", "$"+v.Name.Name, t)
 			}
-			validateValue(opc, v, variables[v.Name.Name], t)
 
 			if v.Default != nil {
 				validateLiteral(opc, v.Default)
@@ -195,6 +207,22 @@ func Validate(s *ast.Schema, doc *ast.ExecutableDefinition, variables map[string
 				}
 				c.addErr(v.Loc, "NoUnusedVariablesRule", "Variable %q is never used%s.", "$"+v.Name.Name, opSuffix)
 			}
+		}
+	}
+
+	return c.errs
+}
+
+// ValidateQueryVariables for a parsed query which is to be executed.
+func ValidateQueryVariables(s *ast.Schema, doc *ast.ExecutableDefinition, variables map[string]interface{}, maxDepth, overlapPairLimit int) []*errors.QueryError {
+	c := newContext(s, doc, maxDepth, overlapPairLimit)
+
+	for _, op := range doc.Operations {
+		opc := &opContext{c, []*ast.OperationDefinition{op}}
+
+		for _, v := range op.Vars {
+			t := resolveType(c, v.Type)
+			validateValue(opc, v, variables[v.Name.Name], t)
 		}
 	}
 

@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 
+	"github.com/graph-gophers/graphql-go/ast"
 	qerrors "github.com/graph-gophers/graphql-go/errors"
 	"github.com/graph-gophers/graphql-go/internal/common"
 	"github.com/graph-gophers/graphql-go/internal/exec"
@@ -26,22 +27,49 @@ func (s *Schema) Subscribe(ctx context.Context, queryString string, operationNam
 	if _, ok := s.schema.RootOperationTypes["subscription"]; !ok {
 		return nil, errors.New("no subscriptions are offered by the schema")
 	}
-	return s.subscribe(ctx, queryString, operationName, variables, s.res), nil
-}
 
-func (s *Schema) subscribe(ctx context.Context, queryString string, operationName string, variables map[string]interface{}, res *resolvable.Schema) <-chan interface{} {
 	doc, qErr := query.Parse(queryString)
 	if qErr != nil {
-		return sendAndReturnClosed(&Response{Errors: []*qerrors.QueryError{qErr}})
+		return sendAndReturnClosed(&Response{Errors: []*qerrors.QueryError{qErr}}), nil
 	}
 
 	validationFinish := s.validationTracer.TraceValidation(ctx)
 	errs := validation.Validate(s.schema, doc, variables, s.maxDepth, s.overlapPairLimit)
 	validationFinish(errs)
 	if len(errs) != 0 {
-		return sendAndReturnClosed(&Response{Errors: errs})
+		return sendAndReturnClosed(&Response{Errors: errs}), nil
 	}
 
+	return s.subscribe(ctx, doc, operationName, variables, s.res), nil
+}
+
+// Subscribe to events from a PreparedQuery. Like the schema variant, events are returned via the response channel.
+// An error will be returned if the schema was created without a resolver. When the context is cancelled, the response
+// channel will be closed and no further resolvers will be called. The context error will be returned as soon as
+// possible (not immediately).
+func (q *PreparedQuery) Subscribe(ctx context.Context, operationName string, variables map[string]interface{}) (<-chan interface{}, error) {
+	s := q.schema
+
+	if !s.res.SubscriptionResolver.IsValid() {
+		return nil, errors.New("schema created without resolver, can not subscribe")
+	}
+
+	if _, ok := s.schema.RootOperationTypes["subscription"]; !ok {
+		return nil, errors.New("no subscriptions are offered by the schema")
+	}
+
+	validationFinish := s.validationTracer.TraceValidation(ctx)
+	errs := validation.ValidateQueryVariables(s.schema, q.doc, variables, s.maxDepth, s.overlapPairLimit)
+	validationFinish(errs)
+
+	if len(errs) > 0 {
+		return sendAndReturnClosed(&Response{Errors: errs}), nil
+	}
+
+	return s.subscribe(ctx, q.doc, operationName, variables, s.res), nil
+}
+
+func (s *Schema) subscribe(ctx context.Context, doc *ast.ExecutableDefinition, operationName string, variables map[string]interface{}, res *resolvable.Schema) <-chan interface{} {
 	op, err := getOperation(doc, operationName)
 	if err != nil {
 		return sendAndReturnClosed(&Response{Errors: []*qerrors.QueryError{qerrors.Errorf("%s", err)}})

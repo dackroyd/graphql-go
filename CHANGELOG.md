@@ -3,6 +3,7 @@
 [Unreleased]
 
 * [FEATURE] Added ability to apply a resolver to an already created schema. This allows multiple executable schemas to be created from the same parsed definition, with different resolvable schema options if required.
+* [FEATURE] Added prepared query support. This allows known queries to be pre-parsed and executed multiple times across different requests, avoiding the overhead of re-parsing every time.
 
 [v1.8.0](https://github.com/graph-gophers/graphql-go/releases/tag/v1.8.0) Release v1.8.0
 

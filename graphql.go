@@ -345,25 +345,92 @@ func (s *Schema) Exec(ctx context.Context, queryString string, operationName str
 	if !s.res.QueryResolver.IsValid() {
 		panic("schema created without resolver, can not exec")
 	}
-	return s.exec(ctx, queryString, operationName, variables, s.res)
-}
 
-func (s *Schema) exec(ctx context.Context, queryString string, operationName string, variables map[string]interface{}, res *resolvable.Schema) *Response {
-	if s.maxQueryLength > 0 && len(queryString) > s.maxQueryLength {
-		return &Response{Errors: []*errors.QueryError{errors.Errorf("query length %d exceeds the maximum allowed query length of %d bytes", len(queryString), s.maxQueryLength)}}
-	}
-	doc, qErr := query.Parse(queryString)
-	if qErr != nil {
-		return &Response{Errors: []*errors.QueryError{qErr}}
-	}
-
-	validationFinish := s.validationTracer.TraceValidation(ctx)
-	errs := validation.Validate(s.schema, doc, variables, s.maxDepth, s.overlapPairLimit)
-	validationFinish(errs)
-	if len(errs) != 0 {
+	q, errs := s.parseQuery(queryString)
+	if len(errs) > 0 {
 		return &Response{Errors: errs}
 	}
 
+	validationFinish := s.validationTracer.TraceValidation(ctx)
+	errs = validation.Validate(s.schema, q, variables, s.maxDepth, s.overlapPairLimit)
+	validationFinish(errs)
+
+	if len(errs) > 0 {
+		return &Response{Errors: errs}
+	}
+
+	return s.exec(ctx, q, queryString, operationName, variables, s.res)
+}
+
+// PreparedQuery which can be executed against a schema. Validation against
+// configured schema options are applied as part of parsing. Validation of
+// query variables happens at execution of the query.
+type PreparedQuery struct {
+	doc    *ast.ExecutableDefinition
+	query  string
+	schema *Schema
+}
+
+// MustPrepareQuery against the schema and configured schema options. Panics if there are any validation errors.
+func (s *Schema) MustPrepareQuery(ctx context.Context, q string) *PreparedQuery {
+	pq, errs := s.PrepareQuery(ctx, q)
+	if len(errs) > 0 {
+		panic(errs)
+	}
+
+	return pq
+}
+
+// PrepareQuery against the schema and configured schema options. Returns any validation errors encountered.
+func (s *Schema) PrepareQuery(ctx context.Context, q string) (*PreparedQuery, []*errors.QueryError) {
+	doc, errs := s.parseQuery(q)
+
+	if len(errs) != 0 {
+		return nil, errs
+	}
+
+	validationFinish := s.validationTracer.TraceValidation(ctx)
+	errs = validation.ValidateQuery(s.schema, doc, s.maxDepth, s.overlapPairLimit)
+	validationFinish(errs)
+
+	if len(errs) != 0 {
+		return nil, errs
+	}
+
+	return &PreparedQuery{doc: doc, query: q, schema: s}, nil
+}
+
+func (s *Schema) parseQuery(q string) (*ast.ExecutableDefinition, []*errors.QueryError) {
+	if s.maxQueryLength > 0 && len(q) > s.maxQueryLength {
+		return nil, []*errors.QueryError{errors.Errorf("query length %d exceeds the maximum allowed query length of %d bytes", len(q), s.maxQueryLength)}
+	}
+
+	doc, qErr := query.Parse(q)
+	if qErr != nil {
+		return nil, []*errors.QueryError{qErr}
+	}
+
+	return doc, nil
+}
+
+// Exec the prepared query with the schema's resolver. Panics if the schema was created
+// without a resolver. If the context get cancelled, no further resolvers will be called and a
+// the context error will be returned as soon as possible (not immediately).
+func (q *PreparedQuery) Exec(ctx context.Context, operationName string, variables map[string]interface{}) *Response {
+	s := q.schema
+
+	validationFinish := s.validationTracer.TraceValidation(ctx)
+	errs := validation.ValidateQueryVariables(s.schema, q.doc, variables, s.maxDepth, s.overlapPairLimit)
+	validationFinish(errs)
+
+	if len(errs) > 0 {
+		return &Response{Errors: errs}
+	}
+
+	return s.exec(ctx, q.doc, q.query, operationName, variables, s.res)
+}
+
+func (s *Schema) exec(ctx context.Context, doc *ast.ExecutableDefinition, q string, operationName string, variables map[string]interface{}, res *resolvable.Schema) *Response {
 	op, err := getOperation(doc, operationName)
 	if err != nil {
 		return &Response{Errors: []*errors.QueryError{errors.Errorf("%s", err)}}
@@ -416,7 +483,7 @@ func (s *Schema) exec(ctx context.Context, queryString string, operationName str
 		}
 		varTypes[v.Name.Name] = introspection.WrapType(t)
 	}
-	traceCtx, finish := s.tracer.TraceQuery(ctx, queryString, operationName, variables, varTypes)
+	traceCtx, finish := s.tracer.TraceQuery(ctx, q, operationName, variables, varTypes)
 	data, errs := r.Execute(traceCtx, res, op)
 	finish(errs)
 

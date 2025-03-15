@@ -26,6 +26,17 @@ type Test struct {
 	RawResponse    bool
 }
 
+type QueryTest struct {
+	Context        context.Context
+	Schema         *graphql.Schema
+	Query          string
+	OperationName  string
+	Variables      map[string]interface{}
+	ExpectedResult string
+	ExpectedErrors []*errors.QueryError
+	RawResponse    bool
+}
+
 // RunTests runs the given GraphQL test cases as subtests.
 func RunTests(t *testing.T, tests []*Test) {
 	if len(tests) == 1 {
@@ -47,9 +58,43 @@ func RunTest(t *testing.T, test *Test) {
 	}
 	result := test.Schema.Exec(test.Context, test.Query, test.OperationName, test.Variables)
 
-	checkErrors(t, test.ExpectedErrors, result.Errors)
+	checkResult(t, test.ExpectedResult, test.ExpectedErrors, test.RawResponse, result)
+}
 
-	if test.ExpectedResult == "" {
+// RunQueryTests runs the given GraphQL test cases as subtests.
+func RunQueryTests(t *testing.T, tests []*QueryTest) {
+	if len(tests) == 1 {
+		RunQueryTest(t, tests[0])
+		return
+	}
+
+	for i, test := range tests {
+		test := test
+
+		t.Run(strconv.Itoa(i+1), func(t *testing.T) {
+			t.Parallel()
+
+			RunQueryTest(t, test)
+		})
+	}
+}
+
+// RunQueryTest runs a single GraphQL test case.
+func RunQueryTest(t *testing.T, test *QueryTest) {
+	if test.Context == nil {
+		test.Context = context.Background()
+	}
+
+	query := test.Schema.MustPrepareQuery(test.Context, test.Query)
+	result := query.Exec(test.Context, test.OperationName, test.Variables)
+
+	checkResult(t, test.ExpectedResult, test.ExpectedErrors, test.RawResponse, result)
+}
+
+func checkResult(t *testing.T, expResult string, expErrs []*errors.QueryError, rawResp bool, result *graphql.Response) {
+	checkErrors(t, expErrs, result.Errors)
+
+	if expResult == "" {
 		if result.Data != nil {
 			t.Fatalf("got: %s, want: null", result.Data)
 		}
@@ -59,7 +104,7 @@ func RunTest(t *testing.T, test *Test) {
 	// Verify JSON to avoid red herring errors.
 	var got []byte
 
-	if test.RawResponse {
+	if rawResp {
 		value, err := result.Data.MarshalJSON()
 		if err != nil {
 			t.Fatalf("got: unable to marshal JSON response: %s", err)
@@ -73,7 +118,7 @@ func RunTest(t *testing.T, test *Test) {
 		got = value
 	}
 
-	want, err := formatJSON([]byte(test.ExpectedResult))
+	want, err := formatJSON([]byte(expResult))
 	if err != nil {
 		t.Fatalf("want: invalid JSON: %s", err)
 	}

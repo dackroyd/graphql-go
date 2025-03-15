@@ -15,7 +15,9 @@ func (s *Schema) Inspect() *introspection.Schema {
 
 // ToJSON encodes the schema in a JSON format used by tools like Relay.
 func (s *Schema) ToJSON() ([]byte, error) {
-	result := s.exec(context.Background(), introspectionQuery, "", nil, &resolvable.Schema{
+	q := s.MustPrepareQuery(context.Background(), introspectionQuery)
+
+	result := s.exec(context.Background(), q.doc, introspectionQuery, "", nil, &resolvable.Schema{
 		Meta:   s.res.Meta,
 		Query:  &resolvable.Object{},
 		Schema: *s.schema,

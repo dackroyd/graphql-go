@@ -4551,6 +4551,67 @@ func TestQueryVariablesValidation(t *testing.T) {
 	}})
 }
 
+func TestPreparedQuery(t *testing.T) {
+	q := `query Hero($episode: Episode = NEWHOPE) {
+		hero(episode: $episode) {
+			id
+			name
+			friends {
+				name
+			}
+		}
+	}`
+
+	gqltesting.RunQueryTests(t, []*gqltesting.QueryTest{
+		{
+			Schema: starwarsSchema,
+			Query:  q,
+			ExpectedResult: `{
+				"hero": {
+					"id": "2001",
+					"name": "R2-D2",
+					"friends": [
+						{
+							"name": "Luke Skywalker"
+						},
+						{
+							"name": "Han Solo"
+						},
+						{
+							"name": "Leia Organa"
+						}
+					]
+				}
+			}`,
+		},
+		{
+			Schema:    starwarsSchema,
+			Query:     q,
+			Variables: map[string]interface{}{"episode": "EMPIRE"},
+			ExpectedResult: `{
+				"hero": {
+					"id": "1000",
+					"name": "Luke Skywalker",
+					"friends": [
+						{
+							"name": "Han Solo"
+						},
+						{
+							"name": "Leia Organa"
+						},
+						{
+							"name": "C-3PO"
+						},
+						{
+							"name": "R2-D2"
+						}
+					]
+				}
+			}`,
+		},
+	})
+}
+
 type (
 	interfaceImplementingInterfaceResolver struct{}
 	interfaceImplementingInterfaceExample  struct {

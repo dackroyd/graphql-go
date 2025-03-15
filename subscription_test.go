@@ -305,6 +305,89 @@ func TestSchemaSubscribe(t *testing.T) {
 	})
 }
 
+func TestPreparedQuerySubscribe(t *testing.T) {
+	gqltesting.RunQuerySubscribes(t, []*gqltesting.TestQuerySubscription{
+		{
+			Name: "ok",
+			Schema: graphql.MustParseSchema(schema, &rootResolver{
+				helloSaidResolver: &helloSaidResolver{
+					upstream: closedUpstream(
+						&helloSaidEventResolver{msg: "Hello world!"},
+						&helloSaidEventResolver{err: errResolver},
+						&helloSaidEventResolver{msg: "Hello again!"},
+					),
+				},
+			}),
+			Query: `
+				subscription onHelloSaid {
+					helloSaid {
+						msg
+					}
+				}
+			`,
+			ExpectedResults: []gqltesting.TestResponse{
+				{
+					Data: json.RawMessage(`
+						{
+							"helloSaid": {
+								"msg": "Hello world!"
+							}
+						}
+					`),
+				},
+				{
+					Data: json.RawMessage(`
+						null
+					`),
+					Errors: []*qerrors.QueryError{qerrors.Errorf("%s", errResolver)},
+				},
+				{
+					Data: json.RawMessage(`
+						{
+							"helloSaid": {
+								"msg": "Hello again!"
+							}
+						}
+					`),
+				},
+			},
+		},
+		{
+			Name: "subscription_resolver_can_query_error",
+			Schema: graphql.MustParseSchema(schema, &rootResolver{
+				helloSaidResolver: &helloSaidResolver{err: resolverQueryErr},
+			}),
+			Query: `
+				subscription onHelloSaid {
+					helloSaid {
+						msg
+					}
+				}
+			`,
+			ExpectedResults: []gqltesting.TestResponse{
+				{
+					Data: json.RawMessage(`
+						null
+					`),
+					Errors: []*qerrors.QueryError{resolverQueryErr},
+				},
+			},
+		},
+		{
+			Name:   "schema_without_resolver_errors",
+			Schema: graphql.MustParseSchema(schema, nil),
+			Query: `
+				subscription onHelloSaid {
+					helloSaid {
+						msg
+					}
+				}
+			`,
+			ExpectedErr: errors.New("schema created without resolver, can not subscribe"),
+		},
+	})
+}
+
 func TestRootOperations_invalidSubscriptionSchema(t *testing.T) {
 	type args struct {
 		Schema string

@@ -28,6 +28,17 @@ type TestSubscription struct {
 	ExpectedErr     error
 }
 
+// TestQuerySubscription is a GraphQL test case to be used with RunSubscribe.
+type TestQuerySubscription struct {
+	Name            string
+	Schema          *graphql.Schema
+	Query           string
+	OperationName   string
+	Variables       map[string]interface{}
+	ExpectedResults []TestResponse
+	ExpectedErr     error
+}
+
 // RunSubscribes runs the given GraphQL subscription test cases as subtests.
 func RunSubscribes(t *testing.T, tests []*TestSubscription) {
 	for i, test := range tests {
@@ -55,12 +66,53 @@ func RunSubscribe(t *testing.T, test *TestSubscription) {
 		return
 	}
 
+	checkSubResult(t, test.ExpectedResults, c)
+}
+
+// RunQuerySubscribes runs the given GraphQL subscription test cases as subtests.
+func RunQuerySubscribes(t *testing.T, tests []*TestQuerySubscription) {
+	for i, test := range tests {
+		test := test
+
+		name := test.Name
+		if name == "" {
+			name = strconv.Itoa(i + 1)
+		}
+
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+
+			RunQuerySubscribe(t, test)
+		})
+	}
+}
+
+// RunQuerySubscribe runs a single GraphQL subscription test case.
+func RunQuerySubscribe(t *testing.T, test *TestQuerySubscription) {
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	query := test.Schema.MustPrepareQuery(ctx, test.Query)
+
+	c, err := query.Subscribe(ctx, test.OperationName, test.Variables)
+	if err != nil {
+		if err.Error() != test.ExpectedErr.Error() {
+			t.Fatalf("unexpected error: got %+v, want %+v", err, test.ExpectedErr)
+		}
+
+		return
+	}
+
+	checkSubResult(t, test.ExpectedResults, c)
+}
+
+func checkSubResult(t *testing.T, expResults []TestResponse, c <-chan interface{}) {
 	var results []*graphql.Response
 	for res := range c {
 		results = append(results, res.(*graphql.Response))
 	}
 
-	for i, expected := range test.ExpectedResults {
+	for i, expected := range expResults {
 		res := results[i]
 
 		checkErrorStrings(t, expected.Errors, res.Errors)
